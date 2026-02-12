@@ -25,7 +25,7 @@
     }
 
     .app {
-      width: min(28rem, 92vw);
+      width: min(30rem, 94vw);
       padding: 1.5rem;
       border-radius: 1rem;
       background: #111827;
@@ -42,11 +42,44 @@
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      margin-bottom: 0.9rem;
+      margin-bottom: 0.8rem;
     }
 
     .row label {
-      min-width: 3rem;
+      min-width: 5.4rem;
+      font-size: 0.9rem;
+    }
+
+    .group-title {
+      margin: 1rem 0 0.65rem;
+      color: #cbd5e1;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    .mode-list {
+      display: grid;
+      gap: 0.5rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .mode-list label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+    }
+
+    .mode-panel {
+      display: none;
+      padding: 0.8rem;
+      border: 1px solid #334155;
+      border-radius: 0.6rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .mode-panel.active {
+      display: block;
     }
 
     input[type="number"] {
@@ -62,6 +95,7 @@
     .button-row {
       display: flex;
       gap: 0.75rem;
+      margin-top: 0.8rem;
     }
 
     button {
@@ -107,7 +141,7 @@
     }
 
     .hint {
-      margin-top: 0.7rem;
+      margin-top: 0.65rem;
       color: #94a3b8;
       font-size: 0.8rem;
     }
@@ -116,22 +150,67 @@
 
 <body>
   <main class="app">
-    <h1>Pretinage Per minute Metromono</h1>
+    <h1>Metronome</h1>
 
     <div class="row">
-      <label for="bpm-input">BPM</label>
+      <label for="bpm-input">Base BPM</label>
       <input id="bpm-input" type="number" min="30" max="300" step="1" value="120" />
     </div>
 
-    <div class="row">
-      <label for="step-seconds-input">Step (s)</label>
-      <input id="step-seconds-input" type="number" min="1" max="600" step="1" value="60" />
+    <p class="group-title">Speed Settings</p>
+    <div class="mode-list">
+      <label>
+        <input type="radio" name="speed-mode" value="relative" checked />
+        Relative Speed
+      </label>
+      <label>
+        <input type="radio" name="speed-mode" value="fixed" />
+        Fixed BPM
+      </label>
+      <label>
+        <input type="radio" name="speed-mode" value="progressive" />
+        Progressive Speed
+      </label>
     </div>
 
-    <div class="row">
-      <label for="step-increment-input">Inc BPM</label>
-      <input id="step-increment-input" type="number" min="1" max="50" step="1" value="5" />
-    </div>
+    <section id="relative-panel" class="mode-panel active">
+      <div class="row">
+        <label for="relative-speed-input">Speed %</label>
+        <input id="relative-speed-input" type="number" min="25" max="300" step="1" value="100" />
+      </div>
+    </section>
+
+    <section id="fixed-panel" class="mode-panel">
+      <div class="row">
+        <label for="fixed-bpm-input">BPM</label>
+        <input id="fixed-bpm-input" type="number" min="30" max="300" step="1" value="120" />
+      </div>
+    </section>
+
+    <section id="progressive-panel" class="mode-panel">
+      <div class="row">
+        <label for="progressive-from-input">From %</label>
+        <input id="progressive-from-input" type="number" min="25" max="300" step="1" value="50" />
+      </div>
+      <div class="row">
+        <label for="progressive-to-input">To %</label>
+        <input id="progressive-to-input" type="number" min="25" max="300" step="1" value="100" />
+      </div>
+      <div class="row">
+        <label for="progressive-step-input">Step %</label>
+        <input id="progressive-step-input" type="number" min="1" max="50" step="1" value="2" />
+      </div>
+      <div class="row">
+        <label for="progressive-repeat-input">Repeat</label>
+        <input id="progressive-repeat-input" type="number" min="1" max="50" step="1" value="1" />
+      </div>
+      <div class="row">
+        <label for="step-seconds-input">Step (s)</label>
+        <input id="step-seconds-input" type="number" min="1" max="600" step="1" value="60" />
+      </div>
+    </section>
+
+    <p id="mode-display" class="hint">Mode: Relative Speed (100%)</p>
 
     <div class="button-row">
       <button id="start-button" type="button">Start</button>
@@ -143,34 +222,55 @@
       <div id="beat-indicator" class="beat-indicator" aria-hidden="true"></div>
     </div>
 
-    <p class="hint">Allowed range: 30-300 BPM</p>
-    <p id="auto-display" class="hint">Auto increase: +5 BPM every 60s</p>
+    <p class="hint">Base BPM range: 30-300</p>
   </main>
 
   <script>
     const bpmInput = document.getElementById("bpm-input");
+    const speedModeInputs = Array.from(document.querySelectorAll('input[name="speed-mode"]'));
+    const relativePanel = document.getElementById("relative-panel");
+    const fixedPanel = document.getElementById("fixed-panel");
+    const progressivePanel = document.getElementById("progressive-panel");
+    const relativeSpeedInput = document.getElementById("relative-speed-input");
+    const fixedBpmInput = document.getElementById("fixed-bpm-input");
+    const progressiveFromInput = document.getElementById("progressive-from-input");
+    const progressiveToInput = document.getElementById("progressive-to-input");
+    const progressiveStepInput = document.getElementById("progressive-step-input");
+    const progressiveRepeatInput = document.getElementById("progressive-repeat-input");
     const stepSecondsInput = document.getElementById("step-seconds-input");
-    const stepIncrementInput = document.getElementById("step-increment-input");
     const bpmDisplay = document.getElementById("bpm-display");
-    const autoDisplay = document.getElementById("auto-display");
+    const modeDisplay = document.getElementById("mode-display");
     const startButton = document.getElementById("start-button");
     const stopButton = document.getElementById("stop-button");
     const beatIndicator = document.getElementById("beat-indicator");
 
     const MIN_BPM = 30;
     const MAX_BPM = 300;
+    const MIN_PERCENT = 25;
+    const MAX_PERCENT = 300;
     const MIN_STEP_SECONDS = 1;
     const MAX_STEP_SECONDS = 600;
-    const MIN_STEP_INCREMENT = 1;
-    const MAX_STEP_INCREMENT = 50;
+    const MIN_STEP_PERCENT = 1;
+    const MAX_STEP_PERCENT = 50;
+    const MIN_REPEAT = 1;
+    const MAX_REPEAT = 50;
     const PULSE_DURATION_MS = 90;
 
     let isPlaying = false;
+    let baseBpm = 120;
     let currentBpm = 120;
-    let autoStepSeconds = 60;
-    let autoStepIncrement = 5;
+    let speedMode = "relative";
+    let relativeSpeedPercent = 100;
+    let fixedBpm = 120;
+    let progressiveFromPercent = 50;
+    let progressiveToPercent = 100;
+    let progressiveStepPercent = 2;
+    let progressiveRepeatCount = 1;
+    let progressiveStepSeconds = 60;
+    let progressiveCurrentPercent = 50;
+    let progressiveCyclesCompleted = 0;
     let timerId = null;
-    let rampTimerId = null;
+    let progressiveTimerId = null;
     let audioContext = null;
 
     function clampBpm(nextBpm) {
@@ -180,18 +280,36 @@
       return Math.round(nextBpm);
     }
 
+    function clampPercent(nextPercent) {
+      if (Number.isNaN(nextPercent)) return MIN_PERCENT;
+      if (nextPercent < MIN_PERCENT) return MIN_PERCENT;
+      if (nextPercent > MAX_PERCENT) return MAX_PERCENT;
+      return Math.round(nextPercent);
+    }
+
+    function clampStepPercent(nextStepPercent) {
+      if (Number.isNaN(nextStepPercent)) return progressiveStepPercent;
+      if (nextStepPercent < MIN_STEP_PERCENT) return MIN_STEP_PERCENT;
+      if (nextStepPercent > MAX_STEP_PERCENT) return MAX_STEP_PERCENT;
+      return Math.round(nextStepPercent);
+    }
+
     function clampStepSeconds(nextStepSeconds) {
-      if (Number.isNaN(nextStepSeconds)) return autoStepSeconds;
+      if (Number.isNaN(nextStepSeconds)) return progressiveStepSeconds;
       if (nextStepSeconds < MIN_STEP_SECONDS) return MIN_STEP_SECONDS;
       if (nextStepSeconds > MAX_STEP_SECONDS) return MAX_STEP_SECONDS;
       return Math.round(nextStepSeconds);
     }
 
-    function clampStepIncrement(nextStepIncrement) {
-      if (Number.isNaN(nextStepIncrement)) return autoStepIncrement;
-      if (nextStepIncrement < MIN_STEP_INCREMENT) return MIN_STEP_INCREMENT;
-      if (nextStepIncrement > MAX_STEP_INCREMENT) return MAX_STEP_INCREMENT;
-      return Math.round(nextStepIncrement);
+    function clampRepeat(nextRepeat) {
+      if (Number.isNaN(nextRepeat)) return progressiveRepeatCount;
+      if (nextRepeat < MIN_REPEAT) return MIN_REPEAT;
+      if (nextRepeat > MAX_REPEAT) return MAX_REPEAT;
+      return Math.round(nextRepeat);
+    }
+
+    function calculateBpmFromPercent(percent) {
+      return clampBpm(Math.round((baseBpm * percent) / 100));
     }
 
     function setPlayingState(nextIsPlaying) {
@@ -204,26 +322,109 @@
       bpmDisplay.textContent = `Current BPM: ${currentBpm}`;
     }
 
-    function updateAutoDisplay() {
-      autoDisplay.textContent = `Auto increase: +${autoStepIncrement} BPM every ${autoStepSeconds}s`;
+    function updateModePanels() {
+      relativePanel.classList.toggle("active", speedMode === "relative");
+      fixedPanel.classList.toggle("active", speedMode === "fixed");
+      progressivePanel.classList.toggle("active", speedMode === "progressive");
     }
 
-    function applyBpmFromInput() {
-      const parsedBpm = Number.parseInt(bpmInput.value, 10);
-      currentBpm = clampBpm(parsedBpm);
-      bpmInput.value = String(currentBpm);
+    function updateModeDisplay() {
+      if (speedMode === "relative") {
+        modeDisplay.textContent = `Mode: Relative Speed (${relativeSpeedPercent}%)`;
+        return;
+      }
+
+      if (speedMode === "fixed") {
+        modeDisplay.textContent = `Mode: Fixed BPM (${fixedBpm})`;
+        return;
+      }
+
+      modeDisplay.textContent = `Mode: Progressive (${progressiveFromPercent}% → ${progressiveToPercent}%, step ${progressiveStepPercent}%, repeat ${progressiveRepeatCount}x, every ${progressiveStepSeconds}s)`;
+    }
+
+    function refreshCurrentBpmFromMode() {
+      if (speedMode === "relative") currentBpm = calculateBpmFromPercent(relativeSpeedPercent);
+      else if (speedMode === "fixed") currentBpm = fixedBpm;
+      else currentBpm = calculateBpmFromPercent(progressiveCurrentPercent);
       updateBpmDisplay();
     }
 
-    function applyAutoSettingsFromInputs() {
-      const parsedStepSeconds = Number.parseInt(stepSecondsInput.value, 10);
-      const parsedStepIncrement = Number.parseInt(stepIncrementInput.value, 10);
-      autoStepSeconds = clampStepSeconds(parsedStepSeconds);
-      autoStepIncrement = clampStepIncrement(parsedStepIncrement);
-      stepSecondsInput.value = String(autoStepSeconds);
-      stepIncrementInput.value = String(autoStepIncrement);
-      updateAutoDisplay();
-      if (isPlaying) startAutoRamp();
+    function applyBaseBpmFromInput() {
+      baseBpm = clampBpm(Number.parseInt(bpmInput.value, 10));
+      bpmInput.value = String(baseBpm);
+      refreshCurrentBpmFromMode();
+    }
+
+    function normalizeProgressiveBounds() {
+      if (progressiveFromPercent <= progressiveToPercent) return;
+      progressiveToPercent = progressiveFromPercent;
+    }
+
+    function stopProgressiveTimer() {
+      if (progressiveTimerId === null) return;
+      window.clearInterval(progressiveTimerId);
+      progressiveTimerId = null;
+    }
+
+    function restartMetronomeIfNeeded() {
+      if (!isPlaying) return;
+      if (timerId !== null) {
+        window.clearInterval(timerId);
+        timerId = null;
+      }
+      const intervalMs = 60000 / currentBpm;
+      timerId = window.setInterval(tick, intervalMs);
+    }
+
+    function advanceProgressiveStep() {
+      if (progressiveCurrentPercent >= progressiveToPercent) {
+        if (progressiveCyclesCompleted + 1 >= progressiveRepeatCount) {
+          stopProgressiveTimer();
+          return;
+        }
+        progressiveCyclesCompleted += 1;
+        progressiveCurrentPercent = progressiveFromPercent;
+      } else {
+        progressiveCurrentPercent = Math.min(
+          progressiveToPercent,
+          progressiveCurrentPercent + progressiveStepPercent
+        );
+      }
+
+      refreshCurrentBpmFromMode();
+      restartMetronomeIfNeeded();
+    }
+
+    function startProgressiveTimer() {
+      stopProgressiveTimer();
+      progressiveTimerId = window.setInterval(advanceProgressiveStep, progressiveStepSeconds * 1000);
+    }
+
+    function applyModeSettingsFromInputs() {
+      relativeSpeedPercent = clampPercent(Number.parseInt(relativeSpeedInput.value, 10));
+      fixedBpm = clampBpm(Number.parseInt(fixedBpmInput.value, 10));
+      progressiveFromPercent = clampPercent(Number.parseInt(progressiveFromInput.value, 10));
+      progressiveToPercent = clampPercent(Number.parseInt(progressiveToInput.value, 10));
+      progressiveStepPercent = clampStepPercent(Number.parseInt(progressiveStepInput.value, 10));
+      progressiveRepeatCount = clampRepeat(Number.parseInt(progressiveRepeatInput.value, 10));
+      progressiveStepSeconds = clampStepSeconds(Number.parseInt(stepSecondsInput.value, 10));
+      normalizeProgressiveBounds();
+
+      relativeSpeedInput.value = String(relativeSpeedPercent);
+      fixedBpmInput.value = String(fixedBpm);
+      progressiveFromInput.value = String(progressiveFromPercent);
+      progressiveToInput.value = String(progressiveToPercent);
+      progressiveStepInput.value = String(progressiveStepPercent);
+      progressiveRepeatInput.value = String(progressiveRepeatCount);
+      stepSecondsInput.value = String(progressiveStepSeconds);
+
+      if (!isPlaying && speedMode === "progressive") progressiveCurrentPercent = progressiveFromPercent;
+      updateModeDisplay();
+      refreshCurrentBpmFromMode();
+
+      if (isPlaying && speedMode === "progressive") startProgressiveTimer();
+      if (isPlaying && speedMode !== "progressive") stopProgressiveTimer();
+      restartMetronomeIfNeeded();
     }
 
     function ensureAudioContext() {
@@ -249,14 +450,12 @@
 
       oscillator.type = "square";
       oscillator.frequency.setValueAtTime(1000, now);
-
       gainNode.gain.setValueAtTime(0.0001, now);
       gainNode.gain.exponentialRampToValueAtTime(0.25, now + 0.005);
       gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
 
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
-
       oscillator.start(now);
       oscillator.stop(now + 0.05);
     }
@@ -266,64 +465,69 @@
       pulseBeatIndicator();
     }
 
+    function startMetronome() {
+      if (isPlaying) return;
+      if (speedMode === "progressive") {
+        progressiveCyclesCompleted = 0;
+        progressiveCurrentPercent = progressiveFromPercent;
+        refreshCurrentBpmFromMode();
+        startProgressiveTimer();
+      } else stopProgressiveTimer();
+
+      const intervalMs = 60000 / currentBpm;
+      timerId = window.setInterval(tick, intervalMs);
+      tick();
+      setPlayingState(true);
+    }
+
     function stopMetronome() {
       if (timerId !== null) {
         window.clearInterval(timerId);
         timerId = null;
       }
-      if (rampTimerId !== null) {
-        window.clearInterval(rampTimerId);
-        rampTimerId = null;
-      }
+      stopProgressiveTimer();
+      progressiveCyclesCompleted = 0;
+      progressiveCurrentPercent = progressiveFromPercent;
+      refreshCurrentBpmFromMode();
       setPlayingState(false);
     }
 
-    function startAutoRamp() {
-      if (rampTimerId !== null) window.clearInterval(rampTimerId);
-
-      rampTimerId = window.setInterval(() => {
-        const nextBpm = clampBpm(currentBpm + autoStepIncrement);
-        if (nextBpm === currentBpm) return;
-        currentBpm = nextBpm;
-        bpmInput.value = String(currentBpm);
-        updateBpmDisplay();
-        restartMetronomeIfNeeded();
-      }, autoStepSeconds * 1000);
-    }
-
-    function startMetronome() {
-      if (isPlaying) return;
-      const intervalMs = 60000 / currentBpm;
-      timerId = window.setInterval(tick, intervalMs);
-      tick();
-      setPlayingState(true);
-      startAutoRamp();
-    }
-
-    function restartMetronomeIfNeeded() {
-      if (!isPlaying) return;
-      if (timerId !== null) {
-        window.clearInterval(timerId);
-        timerId = null;
-      }
-      const intervalMs = 60000 / currentBpm;
-      timerId = window.setInterval(tick, intervalMs);
-    }
-
     bpmInput.addEventListener("input", () => {
-      applyBpmFromInput();
+      applyBaseBpmFromInput();
       restartMetronomeIfNeeded();
     });
+    bpmInput.addEventListener("blur", applyBaseBpmFromInput);
 
-    bpmInput.addEventListener("blur", applyBpmFromInput);
-    stepSecondsInput.addEventListener("input", applyAutoSettingsFromInputs);
-    stepIncrementInput.addEventListener("input", applyAutoSettingsFromInputs);
-    stepSecondsInput.addEventListener("blur", applyAutoSettingsFromInputs);
-    stepIncrementInput.addEventListener("blur", applyAutoSettingsFromInputs);
+    speedModeInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        speedMode = input.value;
+        updateModePanels();
+        if (!isPlaying && speedMode === "progressive")
+          progressiveCurrentPercent = progressiveFromPercent;
+        updateModeDisplay();
+        refreshCurrentBpmFromMode();
+        if (isPlaying && speedMode === "progressive") startProgressiveTimer();
+        if (isPlaying && speedMode !== "progressive") stopProgressiveTimer();
+        restartMetronomeIfNeeded();
+      });
+    });
+
+    [
+      relativeSpeedInput,
+      fixedBpmInput,
+      progressiveFromInput,
+      progressiveToInput,
+      progressiveStepInput,
+      progressiveRepeatInput,
+      stepSecondsInput,
+    ].forEach((input) => {
+      input.addEventListener("input", applyModeSettingsFromInputs);
+      input.addEventListener("blur", applyModeSettingsFromInputs);
+    });
 
     startButton.addEventListener("click", async () => {
-      applyBpmFromInput();
-      applyAutoSettingsFromInputs();
+      applyBaseBpmFromInput();
+      applyModeSettingsFromInputs();
       try {
         await ensureAudioContext();
         startMetronome();
@@ -334,7 +538,9 @@
 
     stopButton.addEventListener("click", stopMetronome);
 
-    applyAutoSettingsFromInputs();
+    updateModePanels();
+    applyBaseBpmFromInput();
+    applyModeSettingsFromInputs();
   </script>
 </body>
 
