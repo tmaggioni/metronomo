@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Metronome</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    .app {
+      width: min(28rem, 92vw);
+      padding: 1.5rem;
+      border-radius: 1rem;
+      background: #111827;
+      border: 1px solid #1f2937;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 {
+      margin: 0 0 1rem;
+      font-size: 1.4rem;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .row label {
+      min-width: 3rem;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 0.55rem 0.7rem;
+      border-radius: 0.5rem;
+      border: 1px solid #334155;
+      background: #0b1220;
+      color: inherit;
+      font-size: 1rem;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    button {
+      flex: 1;
+      padding: 0.65rem 0.85rem;
+      border: 0;
+      border-radius: 0.6rem;
+      color: #e2e8f0;
+      background: #2563eb;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    #stop-button {
+      background: #dc2626;
+    }
+
+    .status {
+      margin-top: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .beat-indicator {
+      width: 0.95rem;
+      height: 0.95rem;
+      border-radius: 999px;
+      background: #475569;
+      transition: transform 80ms ease, background-color 80ms ease;
+    }
+
+    .beat-indicator.active {
+      transform: scale(1.5);
+      background: #22c55e;
+    }
+
+    .hint {
+      margin-top: 0.7rem;
+      color: #94a3b8;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <h1>Vanilla Metronome</h1>
+
+    <div class="row">
+      <label for="bpm-input">BPM</label>
+      <input id="bpm-input" type="number" min="30" max="300" step="1" value="120" />
+    </div>
+
+    <div class="row">
+      <label for="step-seconds-input">Step (s)</label>
+      <input id="step-seconds-input" type="number" min="1" max="600" step="1" value="60" />
+    </div>
+
+    <div class="row">
+      <label for="step-increment-input">Inc BPM</label>
+      <input id="step-increment-input" type="number" min="1" max="50" step="1" value="5" />
+    </div>
+
+    <div class="button-row">
+      <button id="start-button" type="button">Start</button>
+      <button id="stop-button" type="button" disabled>Stop</button>
+    </div>
+
+    <div class="status">
+      <p id="bpm-display" aria-live="polite">Current BPM: 120</p>
+      <div id="beat-indicator" class="beat-indicator" aria-hidden="true"></div>
+    </div>
+
+    <p class="hint">Allowed range: 30-300 BPM</p>
+    <p id="auto-display" class="hint">Auto increase: +5 BPM every 60s</p>
+  </main>
+
+  <script>
+    const bpmInput = document.getElementById("bpm-input");
+    const stepSecondsInput = document.getElementById("step-seconds-input");
+    const stepIncrementInput = document.getElementById("step-increment-input");
+    const bpmDisplay = document.getElementById("bpm-display");
+    const autoDisplay = document.getElementById("auto-display");
+    const startButton = document.getElementById("start-button");
+    const stopButton = document.getElementById("stop-button");
+    const beatIndicator = document.getElementById("beat-indicator");
+
+    const MIN_BPM = 30;
+    const MAX_BPM = 300;
+    const MIN_STEP_SECONDS = 1;
+    const MAX_STEP_SECONDS = 600;
+    const MIN_STEP_INCREMENT = 1;
+    const MAX_STEP_INCREMENT = 50;
+    const PULSE_DURATION_MS = 90;
+
+    let isPlaying = false;
+    let currentBpm = 120;
+    let autoStepSeconds = 60;
+    let autoStepIncrement = 5;
+    let timerId = null;
+    let rampTimerId = null;
+    let audioContext = null;
+
+    function clampBpm(nextBpm) {
+      if (Number.isNaN(nextBpm)) return currentBpm;
+      if (nextBpm < MIN_BPM) return MIN_BPM;
+      if (nextBpm > MAX_BPM) return MAX_BPM;
+      return Math.round(nextBpm);
+    }
+
+    function clampStepSeconds(nextStepSeconds) {
+      if (Number.isNaN(nextStepSeconds)) return autoStepSeconds;
+      if (nextStepSeconds < MIN_STEP_SECONDS) return MIN_STEP_SECONDS;
+      if (nextStepSeconds > MAX_STEP_SECONDS) return MAX_STEP_SECONDS;
+      return Math.round(nextStepSeconds);
+    }
+
+    function clampStepIncrement(nextStepIncrement) {
+      if (Number.isNaN(nextStepIncrement)) return autoStepIncrement;
+      if (nextStepIncrement < MIN_STEP_INCREMENT) return MIN_STEP_INCREMENT;
+      if (nextStepIncrement > MAX_STEP_INCREMENT) return MAX_STEP_INCREMENT;
+      return Math.round(nextStepIncrement);
+    }
+
+    function setPlayingState(nextIsPlaying) {
+      isPlaying = nextIsPlaying;
+      startButton.disabled = nextIsPlaying;
+      stopButton.disabled = !nextIsPlaying;
+    }
+
+    function updateBpmDisplay() {
+      bpmDisplay.textContent = `Current BPM: ${currentBpm}`;
+    }
+
+    function updateAutoDisplay() {
+      autoDisplay.textContent = `Auto increase: +${autoStepIncrement} BPM every ${autoStepSeconds}s`;
+    }
+
+    function applyBpmFromInput() {
+      const parsedBpm = Number.parseInt(bpmInput.value, 10);
+      currentBpm = clampBpm(parsedBpm);
+      bpmInput.value = String(currentBpm);
+      updateBpmDisplay();
+    }
+
+    function applyAutoSettingsFromInputs() {
+      const parsedStepSeconds = Number.parseInt(stepSecondsInput.value, 10);
+      const parsedStepIncrement = Number.parseInt(stepIncrementInput.value, 10);
+      autoStepSeconds = clampStepSeconds(parsedStepSeconds);
+      autoStepIncrement = clampStepIncrement(parsedStepIncrement);
+      stepSecondsInput.value = String(autoStepSeconds);
+      stepIncrementInput.value = String(autoStepIncrement);
+      updateAutoDisplay();
+      if (isPlaying) startAutoRamp();
+    }
+
+    function ensureAudioContext() {
+      if (!audioContext)
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+      if (audioContext.state === "suspended") return audioContext.resume();
+      return Promise.resolve();
+    }
+
+    function pulseBeatIndicator() {
+      beatIndicator.classList.add("active");
+      window.setTimeout(() => {
+        beatIndicator.classList.remove("active");
+      }, PULSE_DURATION_MS);
+    }
+
+    function playClick() {
+      if (!audioContext) return;
+      const now = audioContext.currentTime;
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.type = "square";
+      oscillator.frequency.setValueAtTime(1000, now);
+
+      gainNode.gain.setValueAtTime(0.0001, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.25, now + 0.005);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.start(now);
+      oscillator.stop(now + 0.05);
+    }
+
+    function tick() {
+      playClick();
+      pulseBeatIndicator();
+    }
+
+    function stopMetronome() {
+      if (timerId !== null) {
+        window.clearInterval(timerId);
+        timerId = null;
+      }
+      if (rampTimerId !== null) {
+        window.clearInterval(rampTimerId);
+        rampTimerId = null;
+      }
+      setPlayingState(false);
+    }
+
+    function startAutoRamp() {
+      if (rampTimerId !== null) window.clearInterval(rampTimerId);
+
+      rampTimerId = window.setInterval(() => {
+        const nextBpm = clampBpm(currentBpm + autoStepIncrement);
+        if (nextBpm === currentBpm) return;
+        currentBpm = nextBpm;
+        bpmInput.value = String(currentBpm);
+        updateBpmDisplay();
+        restartMetronomeIfNeeded();
+      }, autoStepSeconds * 1000);
+    }
+
+    function startMetronome() {
+      if (isPlaying) return;
+      const intervalMs = 60000 / currentBpm;
+      timerId = window.setInterval(tick, intervalMs);
+      tick();
+      setPlayingState(true);
+      startAutoRamp();
+    }
+
+    function restartMetronomeIfNeeded() {
+      if (!isPlaying) return;
+      if (timerId !== null) {
+        window.clearInterval(timerId);
+        timerId = null;
+      }
+      const intervalMs = 60000 / currentBpm;
+      timerId = window.setInterval(tick, intervalMs);
+    }
+
+    bpmInput.addEventListener("input", () => {
+      applyBpmFromInput();
+      restartMetronomeIfNeeded();
+    });
+
+    bpmInput.addEventListener("blur", applyBpmFromInput);
+    stepSecondsInput.addEventListener("input", applyAutoSettingsFromInputs);
+    stepIncrementInput.addEventListener("input", applyAutoSettingsFromInputs);
+    stepSecondsInput.addEventListener("blur", applyAutoSettingsFromInputs);
+    stepIncrementInput.addEventListener("blur", applyAutoSettingsFromInputs);
+
+    startButton.addEventListener("click", async () => {
+      applyBpmFromInput();
+      applyAutoSettingsFromInputs();
+      try {
+        await ensureAudioContext();
+        startMetronome();
+      } catch (error) {
+        console.error("Unable to start audio context", error);
+      }
+    });
+
+    stopButton.addEventListener("click", stopMetronome);
+
+    applyAutoSettingsFromInputs();
+  </script>
+</body>
+
+</html>
